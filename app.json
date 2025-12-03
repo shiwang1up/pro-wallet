@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "prowallet",
-    "slug": "prowallet",
+    "slug": "pro-wallet",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.prowallet"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +20,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.prowallet",
+      "permissions": [
+        "android.permission.NFC"
+      ]
     },
     "web": {
       "output": "static",
@@ -38,11 +43,24 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "react-native-nfc-manager",
+        {
+          "nfcPermission": "Allow $(PRODUCT_NAME) to interact with NFC for card scanning."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "404dc449-d393-48bd-b002-c4b935dbd94a"
+      }
+    },
+    "owner": "shiwang1ups-organization"
   }
 }
