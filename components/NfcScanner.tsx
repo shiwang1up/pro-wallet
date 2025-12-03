@@ -2,7 +2,7 @@ import { Fonts } from '@/constants/theme';
 import { useSecureStorage } from '@/hooks/useSecureStorage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
-import { Alert, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { HCESession, NFCTagType4, NFCTagType4NDEFContentType } from 'react-native-hce';
 import NfcManager, { Ndef, NdefRecord, NfcTech, TagEvent } from 'react-native-nfc-manager';
 import { ThemedText } from './themed-text';
@@ -49,9 +49,22 @@ const NfcScanner = () => {
       const isSupported = await NfcManager.isSupported();
       if (isSupported) {
         const isEnabled = await NfcManager.isEnabled();
-        setNfcStatus(isEnabled ? 'Ready to Scan' : 'NFC is disabled');
+        if (isEnabled) {
+          setNfcStatus('Ready to Scan');
+        } else {
+          setNfcStatus('NFC is disabled');
+          Alert.alert(
+            'NFC Disabled',
+            'NFC is required for this feature. Please enable it in settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Platform.OS === 'android' ? Linking.sendIntent('android.settings.NFC_SETTINGS') : Linking.openSettings() }
+            ]
+          );
+        }
       } else {
         setNfcStatus('NFC not supported');
+        Alert.alert('Not Supported', 'This device does not support NFC.');
       }
     } catch (ex) {
       setNfcStatus(`Error checking NFC: ${ex}`);
@@ -198,6 +211,11 @@ const NfcScanner = () => {
         </ThemedText>
       </TouchableOpacity>
       <ThemedText style={styles.statusText}>{nfcStatus}</ThemedText>
+      {nfcStatus === 'NFC is disabled' && (
+        <TouchableOpacity onPress={() => Platform.OS === 'android' ? Linking.sendIntent('android.settings.NFC_SETTINGS') : Linking.openSettings()} style={styles.settingsButton}>
+          <ThemedText style={styles.settingsButtonText}>Open Settings</ThemedText>
+        </TouchableOpacity>
+      )}
       {emittingItem && <ThemedText style={styles.emittingStatus}>Emitting card... bring reader close.</ThemedText>}
     </ThemedView >
   );
@@ -224,9 +242,9 @@ const parseNdefMessage = (ndefMessage: NdefRecord | NdefRecord[]) => {
 
     // Decode based on record type
     if (Ndef.isType(record, Ndef.TNF_WELL_KNOWN, Ndef.RTD_TEXT)) {
-      result += `  Decoded: ${Ndef.text.decodePayload(new Uint8Array(record.payload))}\n`;
+      result += `  Decoded: ${Ndef.text.decodePayload(new Uint8Array(record.payload as any))}\n`;
     } else if (Ndef.isType(record, Ndef.TNF_WELL_KNOWN, Ndef.RTD_URI)) {
-      result += `  Decoded: ${Ndef.uri.decodePayload(new Uint8Array(record.payload))}\n`;
+      result += `  Decoded: ${Ndef.uri.decodePayload(new Uint8Array(record.payload as any))}\n`;
     } else {
       result += `  Payload: ${Ndef.util.bytesToHexString(record.payload)}\n`;
     }
@@ -307,6 +325,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 40,
     fontFamily: Fonts.mono,
+  },
+  settingsButton: {
+    alignSelf: 'center',
+    padding: 10,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  settingsButtonText: {
+    color: 'white',
+    fontFamily: Fonts.rounded,
   },
 });
 

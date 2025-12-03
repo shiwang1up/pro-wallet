@@ -47,9 +47,10 @@
       [
         "react-native-nfc-manager",
         {
-          "nfcPermission": "Allow $(PRODUCT_NAME) to interact with NFC for card scanning."
+        "nfcPermission": "Allow $(PRODUCT_NAME) to interact with NFC for card scanning."
         }
-      ]
+      ],
+      "./plugins/withHce"
     ],
     "experiments": {
       "typedRoutes": true,
