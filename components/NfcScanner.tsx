@@ -1,7 +1,7 @@
 import { Fonts } from '@/constants/theme';
 import { useSecureStorage } from '@/hooks/useSecureStorage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { HCESession, NFCTagType4, NFCTagType4NDEFContentType } from 'react-native-hce';
 import NfcManager, { Ndef, NdefRecord, NfcTech, TagEvent } from 'react-native-nfc-manager';
@@ -22,6 +22,7 @@ const NfcScanner = () => {
   const [scannedItemsLoading, scannedItems, setScannedItems] = useSecureStorage<ScannedItem[]>('scannedNfcItems');
   const [emittingItem, setEmittingItem] = useState<string | null>(null);
   const [hceSession, setHceSession] = useState<HCESession | null>(null);
+  const isCancelling = useRef(false);
 
   useEffect(() => {
     const initApp = async () => {
@@ -73,8 +74,20 @@ const NfcScanner = () => {
 
   const readNdef = async () => {
     if (isScanning) {
-      await NfcManager.cancelTechnologyRequest();
+      isCancelling.current = true;
+      try {
+        await NfcManager.cancelTechnologyRequest();
+      } catch (e) {
+        // Ignore errors during cancellation request itself
+      } finally {
+        isCancelling.current = false;
+      }
       setIsScanning(false);
+      return;
+    }
+
+    if (emittingItem) {
+      Alert.alert('Cannot Scan', 'Please stop emitting the current card before scanning.');
       return;
     }
 
@@ -98,14 +111,22 @@ const NfcScanner = () => {
         };
 
         const newItems = [newItem, ...(scannedItems || [])];
+        console.log("\n\n\n",newItems)
         setScannedItems(newItems);
         setNfcStatus('Scan successful!');
       } else {
         setNfcStatus('No tag found. Try again.');
       }
     } catch (ex) {
-      console.warn('NFC Read Error:', ex);
-      setNfcStatus('Scan failed. Please try again.');
+      // Check if it's a user cancellation (common when calling cancelTechnologyRequest)
+      // The error object or message might vary, but usually it contains "UserCancel" or similar
+      const errorString = String(ex);
+      if (isCancelling.current || errorString.includes('UserCancel') || errorString.includes('cancelled')) {
+        setNfcStatus('Scan cancelled.');
+      } else {
+        console.warn('NFC Read Error:', ex);
+        setNfcStatus('Scan failed. Please try again.');
+      }
     } finally {
       setIsScanning(false);
     }
@@ -123,6 +144,11 @@ const NfcScanner = () => {
   const handleEmitItem = async (item: ScannedItem) => {
     if (!hceSession) {
       Alert.alert('Error', 'HCE Session not initialized. Android only.');
+      return;
+    }
+
+    if (isScanning) {
+      Alert.alert('Cannot Emit', 'Please stop scanning before emitting a card.');
       return;
     }
 
@@ -175,8 +201,12 @@ const NfcScanner = () => {
           <View style={styles.buttonGroup}>
             {Platform.OS === 'android' && (
               <View style={{ flexDirection: "column" }}>
-                <TouchableOpacity onPress={() => handleEmitItem(item)} style={styles.actionButton}>
-                  <MaterialCommunityIcons name="nfc-variant" color={isEmitting ? '#FF6347' : '#007AFF'} size={30} />
+                <TouchableOpacity
+                  onPress={() => handleEmitItem(item)}
+                  style={[styles.actionButton, isScanning && styles.disabledButton]}
+                  disabled={isScanning}
+                >
+                  <MaterialCommunityIcons name="nfc-variant" color={isEmitting ? '#FF6347' : (isScanning ? '#A0A0A0' : '#007AFF')} size={30} />
                 </TouchableOpacity>
                 <Text style={{ textAlign: "center" }}>Emit</Text>
               </View>
@@ -204,10 +234,22 @@ const NfcScanner = () => {
           ListEmptyComponent={<ThemedText style={styles.emptyText}>No scans yet.</ThemedText>}
         />
       </ThemedView>
-      <TouchableOpacity onPress={readNdef} style={[styles.scanButton, isScanning ? styles.scanButtonScanning : {}]}>
-        <MaterialCommunityIcons name="nfc-search-variant" size={60} color={isScanning ? '#FF6347' : '#007AFF'} />
-        <ThemedText type="subtitle" style={styles.scanButtonText}>
-          {isScanning ? 'Stop Scanning' : 'Start Scan'}
+      <TouchableOpacity
+        onPress={readNdef}
+        style={[
+          styles.scanButton,
+          isScanning ? styles.scanButtonScanning : {},
+          emittingItem ? styles.disabledScanButton : {}
+        ]}
+        disabled={!!emittingItem}
+      >
+        <MaterialCommunityIcons
+          name="nfc-search-variant"
+          size={60}
+          color={isScanning ? '#FF6347' : (emittingItem ? '#A0A0A0' : '#007AFF')}
+        />
+        <ThemedText type="subtitle" style={[styles.scanButtonText, emittingItem && { color: '#A0A0A0' }]}>
+          {isScanning ? 'Stop Scanning' : (emittingItem ? 'Cannot Scan (Emitting)' : 'Start Scan')}
         </ThemedText>
       </TouchableOpacity>
       <ThemedText style={styles.statusText}>{nfcStatus}</ThemedText>
@@ -270,6 +312,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#007AFF',
     marginBottom: 20,
+  },
+  disabledScanButton: {
+    borderColor: '#A0A0A0',
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
   scanButtonScanning: {
     borderColor: '#FF6347',
